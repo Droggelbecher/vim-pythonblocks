@@ -63,6 +63,18 @@ if !exists('g:pythonblocks#marker_stderr')
 	let g:pythonblocks#marker_stderr = '!'
 endif
 
+if !exists('g:pythonblocks#expand_marker')
+	let g:pythonblocks#expand_marker = 1
+endif
+
+if !exists('g:pythonblocks#expand_marker_string')
+	let g:pythonblocks#expand_marker_string = "                                                                                              ="
+endif
+
+if !exists('g:pythonblocks#visual_delay')
+	let g:pythonblocks#visual_delay = '200m'
+endif
+
 let s:bin_dir = expand('<sfile>:h:h') . '/bin/'
 
 function! s:init_python() abort
@@ -86,12 +98,13 @@ function! s:select_cell()
 		exec 'normal! V/^' . g:pythonblocks#marker_prefix . g:pythonblocks#marker_cell . '\|\%$' . "\n"
 	endif
 	exec "normal! \<esc>gv"
+	redraw
+	exec "sleep " . g:pythonblocks#visual_delay
 endfunction
 
 function! s:go_next_cell()
-	if line(".") < line("$")
-		exec 'normal! /^' . g:pythonblocks#marker_prefix . g:pythonblocks#marker_cell . '\|\%$' . "\n"
-	endif
+	let l:p = search('^' . g:pythonblocks#marker_prefix . g:pythonblocks#marker_cell . '\|\%$', 'W')
+	call setpos('.', [0, l:p, 1, 0])
 endfunction
 
 function! s:select_next_cell()
@@ -111,13 +124,19 @@ function! s:tidy_selection()
 
 	" Delete all lines with marker_prefix not followed by marker_cell
 	let l:lines = line("$")
-	exec "silent " . l:start . "," . l:end . ' g/^\V' . g:pythonblocks#marker_prefix . '\(' . g:pythonblocks#marker_cell . '\)\@!/d'
+	exec "silent! " . l:start . "," . l:end . ' g/^\V' . g:pythonblocks#marker_prefix . '\(' . g:pythonblocks#marker_cell . '\)\@!/d'
 	let l:end -= l:lines - line("$")
 
 	" Delete all blank lines at the end
 	let l:lines = line("$")
-	exec "silent " . l:start . "," . l:end . ' g/\(^\s*$\n\)\+\%' . l:end . 'l/d'
+	exec "silent! " . l:start . "," . l:end . ' g/\(^\s*$\n\)\+\%' . l:end . 'l/d'
 	let l:end -= l:lines - line("$")
+
+	" Expand cell markers
+
+	if g:pythonblocks#expand_marker
+		exec "silent! " . l:start . "," . l:end . ' s/^\V\(' . g:pythonblocks#marker_prefix . g:pythonblocks#marker_cell . '\)\s\*\$/\1 ' . g:pythonblocks#expand_marker_string . '/e'
+	endif
 
 	call setpos("'>", [0, l:end, 1, 0])
 endfunction
@@ -126,24 +145,22 @@ function! pythonblocks#TidyCell()
 	call s:select_cell()
 	call s:tidy_selection()
 	exec "normal \<esc>"
-	if line(".") == line("$")
-		" At the very end we might neglect the #==,
-		call append(line("."), "")
-		call setpos(".", [0, line("$"), 1, 0])
-	else
+	if getline(".") =~ '^\V' . g:pythonblocks#marker_prefix . g:pythonblocks#marker_cell . '\.\*'
 		call append(line(".") - 1, "")
 	endif
 endfunction
 
 function! pythonblocks#TidyUntil(end)
 	call setpos(".", [0, 0, 1, 0])
-	call pythonblocks#TidyCell()
 	let l:end = a:end
+	let l:before = line("$")
+	call pythonblocks#TidyCell()
+	let l:end = l:end + line("$") - l:before
 	while line(".") < l:end
 		call s:go_next_cell()
 		let l:before = line("$")
 		call pythonblocks#TidyCell()
-		" Move l:end to compensate for removed lines
+		" Move l:end to compensate for added/removed lines
 		let l:end = l:end + line("$") - l:before
 	endwhile
 	exec "normal \<esc>"
@@ -189,13 +206,9 @@ endfunction
 function! pythonblocks#test_cells()
 	call setpos(".", [0, 0, 1, 0])
 	call s:select_cell()
-	redraw
-	sleep 2
 	while line(".") < line("$") - 1
 		call s:go_next_cell()
 		call s:select_cell()
-		redraw
-		sleep 2
 	endwhile
 	exec "normal \<esc>"
 endfunction
