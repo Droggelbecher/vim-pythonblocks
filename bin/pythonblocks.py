@@ -2,6 +2,7 @@
 from multiprocessing import Process, Pipe
 from typing import Union, Optional, Set, Tuple
 import sys
+import traceback
 
 class ExecCommand:
     """
@@ -70,7 +71,7 @@ def execution_loop(connection):
         try:
             return_value, values = command(globals_)
         except Exception as e:
-            sys.stderr.write(e.__class__.__name__ + ': ' + str(e))
+            sys.stderr.write(traceback.format_exc())
 
         connection.send({
             'stdout': sys.stdout.getvalue(),
