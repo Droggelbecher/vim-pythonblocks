@@ -177,6 +177,12 @@ def run_range():
     m_stdout = _markers['prefix'] + _markers['stdout']
     m_stderr = _markers['prefix'] + _markers['stderr']
 
+    for out in cell.stdout.splitlines():
+        l.append(f"{m_stdout} {out}")
+
+    for err in cell.stderr.splitlines():
+        l.append(f"{m_stderr} {err}")
+
     if not _suppress_none_return or cell.return_value is not None:
         for line in cell.return_value.splitlines():
             l.append(f"{m_value} {line}")
@@ -186,12 +192,6 @@ def run_range():
         l.append(f"{m_value} {k} = {lines[0]}")
         for line in lines[1:]:
             l.append(f"{m_value} ...{' ' * len(k)}{line}")
-
-    for out in cell.stdout.splitlines():
-        l.append(f"{m_stdout} {out}")
-
-    for err in cell.stderr.splitlines():
-        l.append(f"{m_stderr} {err}")
 
     if insertion_point >= 0:
         range_.append(l, insertion_point)
