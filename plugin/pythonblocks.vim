@@ -16,16 +16,28 @@
 " [x] On execution: trim all blank lines at end of cell, add blank lines
 " around output
 "
+" [ ] More correct marker handling at end-of-file. Either ensure theres always
+"     a marker there or make a case-distinction based on line content in the
+"     tidying
+"
+" [ ] Proper README, maybe a terminal recording to show off
+"
 " [ ] [MAYBE] Set up some key bindings (switchable)
 "
 " [ ] [MAYBE] Return value of arbitrary variables using
 "     smth like "#== a foo_bar baz", allow all expressions that do not contain
 "     space
 "
-" [ ] [MAYBE] Extend the above to allow multiple lines of expression spec like
+" [ ] [MAYBE] Like the above but one expr per line like
 "     #=? a + b
 "     #=? f(3, 4) + [0, 1]
 "     #=? Foo().bar("foo bar bang")
+"
+" [ ] [MAYBE] Use signs to allow highlighting complete lines for better visual
+"     separation.
+"     OR automagically change the cell makers to something long for this
+"     purpose?
+"
 
 if exists("g:loaded_pythonblocks")
 	finish
