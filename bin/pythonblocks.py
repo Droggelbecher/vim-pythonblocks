@@ -30,8 +30,10 @@ class ExecCommand:
         exec(self.code, globals_, locals_)
 
 
-    def __call__(self, globals_, locals_):
+    def __call__(self, globals_, locals_=None):
         ret = self._run(globals_, locals_)
+        if ret is not None:
+            ret = repr(ret)
 
         values = {}
         for k in self.evals:
@@ -50,7 +52,6 @@ def execution_loop(connection):
     """
     Back-end (actual subprocess)
     """
-    locals_ = {}
     globals_ = {}
 
     import sys
@@ -67,7 +68,7 @@ def execution_loop(connection):
             break
 
         try:
-            return_value, values = command(globals_, locals_)
+            return_value, values = command(globals_)
         except Exception as e:
             sys.stderr.write(e.__class__.__name__ + ': ' + str(e))
 
@@ -163,22 +164,39 @@ def run_range():
 
     # Find insertion position: before the first cell boundary that is not in the first line
     # default to end
-    insertion_point = len(range_) - 1
+    insertion_point = -1
     for i, line in enumerate(range_[1:]):
         if line.startswith(f"{_markers['prefix']}{_markers['cell']}"):
             insertion_point = i + 1
             break
 
-    # Note: these must happen in reverse order as they all are inserted before the same line
-    for err in cell.stderr.splitlines()[::-1]:
-        range_.append(f"{_markers['prefix']}{_markers['stderr']} {err}", insertion_point)
-    for out in cell.stdout.splitlines()[::-1]:
-        range_.append(f"{_markers['prefix']}{_markers['stdout']} {out}", insertion_point)
-    for k, v in tuple(cell.values.items())[::-1]:
-        range_.append(f"{_markers['prefix']}{_markers['value']} {k} = {v}", insertion_point)
+
+    l = []
+
+    m_value = _markers['prefix'] + _markers['value']
+    m_stdout = _markers['prefix'] + _markers['stdout']
+    m_stderr = _markers['prefix'] + _markers['stderr']
 
     if not _suppress_none_return or cell.return_value is not None:
-        range_.append(f"{_markers['prefix']}{_markers['value']} {cell.return_value}", insertion_point)
+        for line in cell.return_value.splitlines():
+            l.append(f"{m_value} {line}")
+
+    for k, v in tuple(cell.values.items()):
+        lines = v.splitlines()
+        l.append(f"{m_value} {k} = {lines[0]}")
+        for line in lines[1:]:
+            l.append(f"{m_value} ...{' ' * len(k)}{line}")
+
+    for out in cell.stdout.splitlines():
+        l.append(f"{m_stdout} {out}")
+
+    for err in cell.stderr.splitlines():
+        l.append(f"{m_stderr} {err}")
+
+    if insertion_point >= 0:
+        range_.append(l, insertion_point)
+    else:
+        range_.append(l)
 
 init()
 print(f"PIM Module loaded on python version {sys.version}")

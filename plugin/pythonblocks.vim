@@ -8,10 +8,13 @@
 "
 " [x] Run all cells up & including current one command
 "
-" [ ] Colorize marker lines (switchable)
+" [x] Colorize marker lines (switchable)
 "     #== color whole line with a grayish color to create a visual delimiter
 "     #=| light green?
 "     #=! red
+"
+" [x] On execution: trim all blank lines at end of cell, add blank lines
+" around output
 "
 " [ ] [MAYBE] Set up some key bindings (switchable)
 "
@@ -93,16 +96,31 @@ function! s:tidy_selection()
 	exec "normal! gv"
 	let l:start = line("'<")
 	let l:end = line("'>")
+
+	" Delete all lines with marker_prefix not followed by marker_cell
 	let l:lines = line("$")
 	exec "silent " . l:start . "," . l:end . ' g/^\V' . g:pythonblocks#marker_prefix . '\(' . g:pythonblocks#marker_cell . '\)\@!/d'
-	let l:deleted = l:lines - line("$")
-	call setpos("'>", [0, l:end - l:deleted, 1, 0])
+	let l:end -= l:lines - line("$")
+
+	" Delete all blank lines at the end
+	let l:lines = line("$")
+	exec "silent " . l:start . "," . l:end . ' g/\(^\s*$\n\)\+\%' . l:end . 'l/d'
+	let l:end -= l:lines - line("$")
+
+	call setpos("'>", [0, l:end, 1, 0])
 endfunction
 
 function! pythonblocks#TidyCell()
 	call s:select_cell()
 	call s:tidy_selection()
 	exec "normal \<esc>"
+	if line(".") == line("$")
+		" At the very end we might neglect the #==,
+		call append(line("."), "")
+		call setpos(".", [0, line("$"), 1, 0])
+	else
+		call append(line(".") - 1, "")
+	endif
 endfunction
 
 function! pythonblocks#TidyUntil(end)
@@ -130,6 +148,7 @@ function! pythonblocks#RunCell()
 
 	'<,'> py3 pythonblocks.run_range()
 	exec "normal! \<esc>"
+	call append(line(".") - 1, "")
 endfunction
 
 function! pythonblocks#RunUntil(end)
