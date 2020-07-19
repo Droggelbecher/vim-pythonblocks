@@ -7,19 +7,40 @@ class ExecCommand:
     """
     A command to be executed by the dedicated python interpreter process
     """
-    def __init__(self, code, evals=()):
+    def __init__(self, code, eval_last_expr=True, evals=()):
         self.code = code
         self.evals = evals
+        self.eval_last_expr = eval_last_expr
+
+    def _run(self, globals_, locals_):
+        if self.eval_last_expr:
+            # Split off last statement and see if its an expression.
+            # if it is, execute it separately with eval() so we can obtain its value
+            import ast
+            statements = list(ast.iter_child_nodes(ast.parse(self.code)))
+            if not statements:
+                return None
+
+            if isinstance(statements[-1], ast.Expr):
+                exec_part = compile(ast.Module(body=statements[:-1]), filename="<ast>", mode="exec")
+                eval_part = compile(ast.Expression(body=statements[-1].value), filename="<ast>", mode="eval")
+                exec(exec_part, globals_, locals_)
+                return eval(eval_part, globals_, locals_)
+
+        exec(self.code, globals_, locals_)
+
 
     def __call__(self, globals_, locals_):
-        exec(self.code, globals_, locals_)
-        r = {}
+        ret = self._run(globals_, locals_)
+
+        values = {}
         for k in self.evals:
             try:
-                r[k] = repr(eval(k, globals_, locals_))
+                values[k] = repr(eval(k, globals_, locals_))
             except Exception as e:
-                r[k] = 'raised ' + e.__class__.__name__ + ': ' + str(e)
-        return r
+                values[k] = 'raised ' + e.__class__.__name__ + ': ' + str(e)
+
+        return ret, values
 
 
 def execution_loop(connection):
@@ -36,9 +57,11 @@ def execution_loop(connection):
         command = connection.recv()
         sys.stdout = io.StringIO()
         sys.stderr = io.StringIO()
+        return_value = None
         values = {}
+
         try:
-            values = command(globals_, locals_)
+            return_value, values = command(globals_, locals_)
         except Exception as e:
             sys.stderr.write(e.__class__.__name__ + ': ' + str(e))
 
@@ -46,6 +69,7 @@ def execution_loop(connection):
             'stdout': sys.stdout.getvalue(),
             'stderr': sys.stderr.getvalue(),
             'values': values,
+            'return_value': return_value
         })
 
 class SubprocessInterpreter:
@@ -62,7 +86,6 @@ class SubprocessInterpreter:
         d = self.connection.recv()
         for k, v in d.items():
             setattr(cell, k, v)
-        # cell.__dict__.update(d)
         return cell
 
 
@@ -70,6 +93,8 @@ class Cell:
     _id = None # Identification of cell for text interface
     code = ""
     expressions = ()
+
+    return_value = None
     values = {}
     stdout = []
     stderr = []
@@ -102,14 +127,16 @@ _markers = {
     'stderr': '!',
 }
 
+_suppress_none_return = True
+
 def update_config():
     import vim
     global _markers
-    _markers['prefix'] = vim.vars.get('pim#marker_prefix', '#=')
-    _markers['cell'] = vim.vars.get('pim#marker_cell', '=')
-    _markers['value'] = vim.vars.get('pim#marker_value', '>')
-    _markers['stdout'] = vim.vars.get('pim#marker_stdout', '|')
-    _markers['stderr'] = vim.vars.get('pim#marker_stderr', '!')
+    _markers['prefix'] = vim.vars.get('pythonblocks#marker_prefix', '#=')
+    _markers['cell'] = vim.vars.get('pythonblocks#marker_cell', '=')
+    _markers['value'] = vim.vars.get('pythonblocks#marker_value', '>')
+    _markers['stdout'] = vim.vars.get('pythonblocks#marker_stdout', '|')
+    _markers['stderr'] = vim.vars.get('pythonblocks#marker_stderr', '!')
 
 def run_range():
     import vim
@@ -128,10 +155,16 @@ def run_range():
             insertion_point = i + 1
             break
 
+    # Note: these must happen in reverse order as they all are inserted before the same line
     for err in cell.stderr.splitlines()[::-1]:
         range_.append(f"{_markers['prefix']}{_markers['stderr']} {err}", insertion_point)
     for out in cell.stdout.splitlines()[::-1]:
         range_.append(f"{_markers['prefix']}{_markers['stdout']} {out}", insertion_point)
+    for k, v in tuple(cell.values.items())[::-1]:
+        range_.append(f"{_markers['prefix']}{_markers['value']} {k} = {v}", insertion_point)
+
+    if not _suppress_none_return or cell.return_value is not None:
+        range_.append(f"{_markers['prefix']}{_markers['value']} {cell.return_value}", insertion_point)
 
 init()
 print(f"PIM Module loaded on python version {sys.version}")
