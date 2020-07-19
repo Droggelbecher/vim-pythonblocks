@@ -42,6 +42,9 @@ class ExecCommand:
 
         return ret, values
 
+class ExitCommand:
+    pass
+
 
 def execution_loop(connection):
     """
@@ -60,6 +63,9 @@ def execution_loop(connection):
         return_value = None
         values = {}
 
+        if isinstance(command, ExitCommand):
+            break
+
         try:
             return_value, values = command(globals_, locals_)
         except Exception as e:
@@ -77,6 +83,17 @@ class SubprocessInterpreter:
     Front-end
     """
     def __init__(self):
+        self.connection, conn_executor = Pipe()
+        self.subprocess = Process(target=execution_loop, args=(conn_executor,))
+        self.subprocess.start()
+
+    def restart(self):
+        self.connection.send(ExitCommand())
+        self.subprocess.join(timeout=5000)
+        if self.subprocess.is_alive():
+            self.subprocess.kill()
+        self.subprocess.close()
+
         self.connection, conn_executor = Pipe()
         self.subprocess = Process(target=execution_loop, args=(conn_executor,))
         self.subprocess.start()
@@ -112,13 +129,6 @@ def init():
     _interpreter = SubprocessInterpreter()
 
 
-def run_current_cell():
-    import vim
-    row, col = vim.current.window.cursor
-    cell = _text_interface.get_cell(row - 1, create=True)
-    _interpreter.exec(cell)
-    _text_interface.update_cell(cell)
-
 _markers = {
     'prefix': '#=',
     'cell': '=',
@@ -137,6 +147,10 @@ def update_config():
     _markers['value'] = vim.vars.get('pythonblocks#marker_value', '>')
     _markers['stdout'] = vim.vars.get('pythonblocks#marker_stdout', '|')
     _markers['stderr'] = vim.vars.get('pythonblocks#marker_stderr', '!')
+
+def restart():
+    _interpreter.restart()
+
 
 def run_range():
     import vim

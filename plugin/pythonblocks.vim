@@ -2,9 +2,9 @@
 " TODO:
 " [x] Return value of last expression in block (switchable)
 "
-" [ ] Allow restarting the interpreter with a command
+" [x] Allow restarting the interpreter with a command
 "
-" [ ] Clear cell command
+" [ ] Clear cell command + clear all command
 "
 " [ ] Run all cells up & including current one command
 "
@@ -103,5 +103,6 @@ call s:init_python()
 command! -buffer -nargs=* -complete=file PythonblocksRunFile call pythonblocks#RunFile(<f-args>)
 command! PythonblocksRunCell call pythonblocks#RunCell()
 command! PythonblocksTidySelection call pythonblocks#TidySelection()
+command! PythonblocksRestart py3 pythonblocks.restart()
 
 
