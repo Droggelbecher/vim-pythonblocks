@@ -155,7 +155,6 @@ endfunction
 
 
 
-
 function! pythonblocks#test_cells()
 	call setpos(".", [0, 0, 1, 0])
 	call s:select_cell()
