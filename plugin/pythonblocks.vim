@@ -141,6 +141,10 @@ function! s:tidy_selection()
 	call setpos("'>", [0, l:end, 1, 0])
 endfunction
 
+function! pythonblocks#AddCellMarker()
+	call append(line("."), g:pythonblocks#marker_prefix . g:pythonblocks#marker_cell . ' ' . g:pythonblocks#expand_marker_string)
+endfunction
+	
 function! pythonblocks#TidyCell()
 	call s:select_cell()
 	call s:tidy_selection()
@@ -220,6 +224,8 @@ endfunction
 call s:init_python()
 
 command! PBRestart py3 pythonblocks.restart()
+
+command! PBAddCellMarker call pythonblocks#AddCellMarker()
 
 command! PBTidyCell call pythonblocks#TidyCell()
 command! PBTidyUntil call pythonblocks#TidyUntil(line("."))
