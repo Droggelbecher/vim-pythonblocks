@@ -1,9 +1,4 @@
 
-syn clear pbCellMarker
-syn clear pbStdout
-syn clear pbStderr
-syn clear pbValue
-
 let s:pref = strlen(g:pythonblocks#marker_prefix)
 
 exec 'syn match pbCellMarker /^\V' . g:pythonblocks#marker_prefix . g:pythonblocks#marker_cell . '\.\*/'
@@ -17,14 +12,6 @@ exec 'syn match pbStderrText /^\V' . g:pythonblocks#marker_prefix . g:pythonbloc
 exec 'syn match pbValue /^\V' . g:pythonblocks#marker_prefix . g:pythonblocks#marker_value . '\.\*/'
 exec 'syn match pbValueText /^\V' . g:pythonblocks#marker_prefix . g:pythonblocks#marker_value . ' \zs\.\*/ containedin=pbValue'
 
-
-
-hi clear pbCellMarker
-hi clear pbStdout
-hi clear pbStderr
-hi clear pbValue
-
-"hi pbCellMarker ctermbg=240 ctermfg=235
 hi link pbCellMarker Folded
 
 hi link pbStdout Comment

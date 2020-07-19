@@ -200,5 +200,4 @@ def run_range():
         range_.append(l)
 
 init()
-print(f"PIM Module loaded on python version {sys.version}")
 
