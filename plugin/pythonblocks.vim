@@ -4,7 +4,7 @@
 "
 " [x] Allow restarting the interpreter with a command
 "
-" [ ] Clear cell command + clear all command
+" [x] Clear cell command + clear all command
 "
 " [ ] Run all cells up & including current one command
 "
@@ -62,7 +62,27 @@ function! s:init_python() abort
 	exec 'py3 exec('''.escape(join(l:init_lines, '\n'), "'").''')'
 endfunction
 
-function! pythonblocks#TidySelection()
+function! s:select_cell()
+	exec "normal! \<esc>"
+	if line(".") > 1
+		exec 'normal! ?^' . g:pythonblocks#marker_prefix . g:pythonblocks#marker_cell . '\|\%^' . "\n"
+	endif
+	exec 'normal! V/^' . g:pythonblocks#marker_prefix . g:pythonblocks#marker_cell . '\|\%$' . "\n"
+	exec "normal! \<esc>gv"
+endfunction
+
+function! s:go_next_cell()
+	exec 'normal! /^' . g:pythonblocks#marker_prefix . g:pythonblocks#marker_cell . '\|\%$' . "\n"
+endfunction
+
+function! s:select_next_cell()
+	exec "normal! gv"
+	exec "normal! \<esc>"
+	call setpos('.', [0, line("'>") + 1, 1, 0])
+	call s:select_cell()
+endfunction
+
+function! s:tidy_selection()
 	" Tidy the visual selection of all pythonblocks output lines except for
 	" cell markers
 	" Update the visual selection to account for deleted lines.
@@ -70,9 +90,14 @@ function! pythonblocks#TidySelection()
 	let l:start = line("'<")
 	let l:end = line("'>")
 	let l:lines = line("$")
-	exec l:start . "," . l:end . ' g/^\V' . g:pythonblocks#marker_prefix . '\(' . g:pythonblocks#marker_cell . '\)\@!/d'
+	exec "silent " . l:start . "," . l:end . ' g/^\V' . g:pythonblocks#marker_prefix . '\(' . g:pythonblocks#marker_cell . '\)\@!/d'
 	let l:deleted = l:lines - line("$")
 	call setpos("'>", [0, l:end - l:deleted, 1, 0])
+endfunction
+
+function! pythonblocks#TidyCell()
+	call s:select_cell()
+	call s:tidy_selection()
 endfunction
 
 function! pythonblocks#RunFile(...) abort
@@ -87,22 +112,49 @@ function! pythonblocks#RunCell()
 	" sourrounding cell markers.
 	" Tidy the selection from pythonblocks outputs and run it in python,
 	" potentially creating new output.
-	exec 'normal! ?^' . g:pythonblocks#marker_prefix . g:pythonblocks#marker_cell . '\|\%^' . "\n"
-	exec 'normal! V/^' . g:pythonblocks#marker_prefix . g:pythonblocks#marker_cell . '\|\%$' . "\n"
-	exec "normal! \<esc>gv"
-
-	call pythonblocks#TidySelection()
+	call pythonblocks#TidyCell()
 	exec "normal! gv"
 
 	'<,'> py3 pythonblocks.run_range()
 	exec "normal! \<esc>"
 endfunction
 
+function! pythonblocks#test_cells()
+	call setpos(".", [0, 0, 1, 0])
+	call s:select_cell()
+	redraw
+	sleep 2
+	while line(".") < line("$") - 1
+		call s:go_next_cell()
+		call s:select_cell()
+		redraw
+		sleep 2
+	endwhile
+	exec "normal \<esc>"
+endfunction
+
+function! pythonblocks#TidyAll()
+	call setpos(".", [0, 0, 1, 0])
+	call pythonblocks#TidyCell()
+	while line(".") < line("$") - 1
+		call s:go_next_cell()
+		call pythonblocks#TidyCell()
+	endwhile
+	exec "normal \<esc>"
+endfunction
+
+function! pythonblocks#select_cell()
+	call s:select_cell()
+endfunction
+
 call s:init_python()
 
 command! -buffer -nargs=* -complete=file PythonblocksRunFile call pythonblocks#RunFile(<f-args>)
 command! PythonblocksRunCell call pythonblocks#RunCell()
-command! PythonblocksTidySelection call pythonblocks#TidySelection()
+command! PythonblocksTidyCell call pythonblocks#TidyCell()
+command! PythonblocksTidyAll call pythonblocks#TidyAll()
 command! PythonblocksRestart py3 pythonblocks.restart()
 
+command! PBTest call pythonblocks#test_cells()
+command! PBSel call pythonblocks#select_cell()
 
