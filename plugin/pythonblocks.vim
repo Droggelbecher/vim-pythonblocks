@@ -6,7 +6,7 @@
 "
 " [x] Clear cell command + clear all command
 "
-" [ ] Run all cells up & including current one command
+" [x] Run all cells up & including current one command
 "
 " [ ] Colorize marker lines (switchable)
 "     #== color whole line with a grayish color to create a visual delimiter
@@ -67,12 +67,16 @@ function! s:select_cell()
 	if line(".") > 1
 		exec 'normal! ?^' . g:pythonblocks#marker_prefix . g:pythonblocks#marker_cell . '\|\%^' . "\n"
 	endif
-	exec 'normal! V/^' . g:pythonblocks#marker_prefix . g:pythonblocks#marker_cell . '\|\%$' . "\n"
+	if line(".") < line("$")
+		exec 'normal! V/^' . g:pythonblocks#marker_prefix . g:pythonblocks#marker_cell . '\|\%$' . "\n"
+	endif
 	exec "normal! \<esc>gv"
 endfunction
 
 function! s:go_next_cell()
-	exec 'normal! /^' . g:pythonblocks#marker_prefix . g:pythonblocks#marker_cell . '\|\%$' . "\n"
+	if line(".") < line("$")
+		exec 'normal! /^' . g:pythonblocks#marker_prefix . g:pythonblocks#marker_cell . '\|\%$' . "\n"
+	endif
 endfunction
 
 function! s:select_next_cell()
@@ -98,14 +102,23 @@ endfunction
 function! pythonblocks#TidyCell()
 	call s:select_cell()
 	call s:tidy_selection()
+	exec "normal \<esc>"
 endfunction
 
-function! pythonblocks#RunFile(...) abort
-	" Execute the given file with python.
-	" If no file is given, use the filename of the current buffer.
-	let l:filename = a:0 ? a:000[-1] : expand("%:p")
-	exec "py3file " . l:filename
+function! pythonblocks#TidyUntil(end)
+	call setpos(".", [0, 0, 1, 0])
+	call pythonblocks#TidyCell()
+	let l:end = a:end
+	while line(".") < l:end
+		call s:go_next_cell()
+		let l:before = line("$")
+		call pythonblocks#TidyCell()
+		" Move l:end to compensate for removed lines
+		let l:end = l:end + line("$") - l:before
+	endwhile
+	exec "normal \<esc>"
 endfunction
+
 
 function! pythonblocks#RunCell()
 	" Set up a visual selection spanning the current cell as defined by
@@ -118,6 +131,30 @@ function! pythonblocks#RunCell()
 	'<,'> py3 pythonblocks.run_range()
 	exec "normal! \<esc>"
 endfunction
+
+function! pythonblocks#RunUntil(end)
+	call setpos(".", [0, 0, 1, 0])
+	call pythonblocks#RunCell()
+	let l:end = a:end
+	while line(".") < l:end
+		call s:go_next_cell()
+		let l:before = line("$")
+		call pythonblocks#RunCell()
+		" Move l:end to compensate for removed lines
+		let l:end = l:end + line("$") - l:before
+	endwhile
+	exec "normal \<esc>"
+endfunction
+
+function! pythonblocks#RunFile(...) abort
+	" Execute the given file with python.
+	" If no file is given, use the filename of the current buffer.
+	let l:filename = a:0 ? a:000[-1] : expand("%:p")
+	exec "py3file " . l:filename
+endfunction
+
+
+
 
 function! pythonblocks#test_cells()
 	call setpos(".", [0, 0, 1, 0])
@@ -133,27 +170,22 @@ function! pythonblocks#test_cells()
 	exec "normal \<esc>"
 endfunction
 
-function! pythonblocks#TidyAll()
-	call setpos(".", [0, 0, 1, 0])
-	call pythonblocks#TidyCell()
-	while line(".") < line("$") - 1
-		call s:go_next_cell()
-		call pythonblocks#TidyCell()
-	endwhile
-	exec "normal \<esc>"
-endfunction
-
 function! pythonblocks#select_cell()
 	call s:select_cell()
 endfunction
 
 call s:init_python()
 
+command! PBRestart py3 pythonblocks.restart()
+
+command! PBTidyCell call pythonblocks#TidyCell()
+command! PBTidyUntil call pythonblocks#TidyUntil(line("."))
+command! PBTidyAll call pythonblocks#TidyUntil(line("$") - 1)
+
+command! PBRunCell call pythonblocks#RunCell()
+command! PBRunUntil call pythonblocks#RunUntil(line("."))
+command! PBRunAll call pythonblocks#RunUntil(line("$") - 1)
 command! -buffer -nargs=* -complete=file PythonblocksRunFile call pythonblocks#RunFile(<f-args>)
-command! PythonblocksRunCell call pythonblocks#RunCell()
-command! PythonblocksTidyCell call pythonblocks#TidyCell()
-command! PythonblocksTidyAll call pythonblocks#TidyAll()
-command! PythonblocksRestart py3 pythonblocks.restart()
 
 command! PBTest call pythonblocks#test_cells()
 command! PBSel call pythonblocks#select_cell()
