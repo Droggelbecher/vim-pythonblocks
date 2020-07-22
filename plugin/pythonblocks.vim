@@ -16,11 +16,20 @@
 " [x] On execution: trim all blank lines at end of cell, add blank lines
 " around output
 "
-" [ ] More correct marker handling at end-of-file. Either ensure theres always
+" [x] More correct marker handling at end-of-file. Either ensure theres always
 "     a marker there or make a case-distinction based on line content in the
 "     tidying
 "
+" [ ] Tidying/running leaves two blank lines at EOF, when it should be one
+" like in all other cells
+"
 " [ ] Proper README, maybe a terminal recording to show off
+"
+" [x] Command to execute visual selection rather than current block
+"
+" [ ] Measure timing and report in marker (optionally)
+"
+" [ ] Optionally report last execution time in marker
 "
 " [ ] [MAYBE] Set up some key bindings (switchable)
 "
@@ -114,6 +123,15 @@ function! s:select_next_cell()
 	call s:select_cell()
 endfunction
 
+function! s:update_selection_end(end)
+	let l:orig_pos = getpos('.')
+	call setpos(".", [0, getpos("'>")[1], 1, 0])
+	normal! g$
+	let l:last_col = getpos(".")[2]
+	call setpos("'>", [0, a:end, l:last_col, 0])
+	call setpos(".", l:orig_pos)
+endfunction
+
 function! s:tidy_selection()
 	" Tidy the visual selection of all pythonblocks output lines except for
 	" cell markers
@@ -134,12 +152,27 @@ function! s:tidy_selection()
 
 	" Expand cell markers
 
+	let l:lines = line("$")
 	if g:pythonblocks#expand_marker
 		exec "silent! " . l:start . "," . l:end . ' s/^\V\(' . g:pythonblocks#marker_prefix . g:pythonblocks#marker_cell . '\)\s\*\$/\1 ' . g:pythonblocks#expand_marker_string . '/e'
 	endif
+	let l:end -= l:lines - line("$")
 
+	call s:update_selection_end(l:end)
+endfunction
+
+function! s:run_selection()
+	let l:begin = line("'<")
+	let l:end = line("'>")
+	exec "normal! \<esc>"
+	let l:before = line("$")
+	if l:end >= l:begin && l:end <= line("$")
+		exec l:begin . ',' . l:end . 'py3 pythonblocks.run_range()'
+	endif
+	let l:end = l:end + line("$") - l:before
 	call setpos("'>", [0, l:end, 1, 0])
 endfunction
+
 
 function! pythonblocks#AddCellMarker()
 	call append(line("."), g:pythonblocks#marker_prefix . g:pythonblocks#marker_cell . ' ' . g:pythonblocks#expand_marker_string)
@@ -150,7 +183,10 @@ function! pythonblocks#TidyCell()
 	call s:tidy_selection()
 	exec "normal \<esc>"
 	if getline(".") =~ '^\V' . g:pythonblocks#marker_prefix . g:pythonblocks#marker_cell . '\.\*'
-		call append(line(".") - 1, "")
+		" This appending will be tracked by '> automatically!
+		call append(line("'>") - 1, "")
+	else
+		call append(line("'>"), "")
 	endif
 endfunction
 
@@ -179,9 +215,20 @@ function! pythonblocks#RunCell()
 	call pythonblocks#TidyCell()
 	exec "normal! gv"
 
-	'<,'> py3 pythonblocks.run_range()
+	call s:run_selection()
+	exec "normal! gv"
 	exec "normal! \<esc>"
-	call append(line(".") - 1, "")
+	if getline(".") =~ '^\V' . g:pythonblocks#marker_prefix . g:pythonblocks#marker_cell . '\.\*'
+		" This appending will be tracked by '> automatically!
+		call append(line("'>") - 1, "")
+	else
+		call append(line("'>"), "")
+	endif
+endfunction
+
+function! pythonblocks#RunSelection()
+	call s:tidy_selection()
+	call s:run_selection()
 endfunction
 
 function! pythonblocks#RunUntil(end)
@@ -234,6 +281,10 @@ command! PBTidyAll call pythonblocks#TidyUntil(line("$") - 1)
 command! PBRunCell call pythonblocks#RunCell()
 command! PBRunUntil call pythonblocks#RunUntil(line("."))
 command! PBRunAll call pythonblocks#RunUntil(line("$") - 1)
+
+" We don't actually use the range here but rather query '< and '> directly,
+" still its more convenient to use this way
+command! -range PBRunSelection call pythonblocks#RunSelection()
 command! -buffer -nargs=* -complete=file PythonblocksRunFile call pythonblocks#RunFile(<f-args>)
 
 command! PBTest call pythonblocks#test_cells()
