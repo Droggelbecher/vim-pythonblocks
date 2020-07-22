@@ -177,7 +177,7 @@ endfunction
 
 
 function! pythonblocks#AddCellMarker()
-	call append(line("."), g:pythonblocks#marker_prefix . g:pythonblocks#marker_cell . ' ' . g:pythonblocks#expand_marker_string)
+	call append(line("."), g:pythonblocks#marker_prefix . g:pythonblocks#marker_cell)
 endfunction
 	
 function! pythonblocks#TidyCell()
