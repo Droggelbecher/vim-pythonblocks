@@ -3,6 +3,8 @@ from multiprocessing import Process, Pipe
 from typing import Union, Optional, Set, Tuple
 import sys
 import traceback
+import time
+import datetime
 
 class ExecCommand:
     """
@@ -32,7 +34,10 @@ class ExecCommand:
 
 
     def __call__(self, globals_, locals_=None):
+        t = time.time()
         ret = self._run(globals_, locals_)
+        dt = time.time() - t
+
         if ret is not None:
             ret = repr(ret)
 
@@ -43,7 +48,7 @@ class ExecCommand:
             except Exception as e:
                 values[k] = 'raised ' + e.__class__.__name__ + ': ' + str(e)
 
-        return ret, values
+        return ret, values, dt
 
 class ExitCommand:
     pass
@@ -69,7 +74,7 @@ def execution_loop(connection):
             break
 
         try:
-            return_value, values = command(globals_)
+            return_value, values, dt = command(globals_)
         except Exception as e:
             sys.stderr.write(traceback.format_exc())
 
@@ -77,7 +82,8 @@ def execution_loop(connection):
             'stdout': sys.stdout.getvalue(),
             'stderr': sys.stderr.getvalue(),
             'values': values,
-            'return_value': return_value
+            'return_value': return_value,
+            'dt': dt
         })
 
 class SubprocessInterpreter:
@@ -109,7 +115,6 @@ class SubprocessInterpreter:
 
 
 class Cell:
-    _id = None # Identification of cell for text interface
     code = ""
     expressions = ()
 
@@ -117,6 +122,7 @@ class Cell:
     values = {}
     stdout = []
     stderr = []
+    dt = None
 
     @classmethod
     def from_range(class_, range_):
@@ -131,33 +137,74 @@ def init():
     _interpreter = SubprocessInterpreter()
 
 
-_markers = {
-    'prefix': '#=',
-    'cell': '=',
-    'value': '>',
-    'stdout': '|',
-    'stderr': '!',
-}
+# _markers = {
+    # 'prefix': '#=',
+    # 'cell': '=',
+    # 'value': '>',
+    # 'stdout': '|',
+    # 'stderr': '!',
+# }
 
-_suppress_none_return = True
+# _suppress_none_return = True
+# _insert_return = 'not_none'
+# _marker_template = "{dt:>74}s "
 
-def update_config():
+# _config = {
+    # 'marker_prefix': '#=',
+    # 'marker_cell': '=',
+    # 'marker_value': '>',
+    # 'marker_stdout': '|',
+    # 'marker_stderr': '!',
+    # 'expand_marker': 1,
+    # 'marker_template': '{dt:>74}s ',
+    # 'insert_return': 'not_none',
+# }
+
+def getconfig(c, type_=str, default=None):
     import vim
-    global _markers
-    _markers['prefix'] = vim.vars.get('pythonblocks#marker_prefix', '#=')
-    _markers['cell'] = vim.vars.get('pythonblocks#marker_cell', '=')
-    _markers['value'] = vim.vars.get('pythonblocks#marker_value', '>')
-    _markers['stdout'] = vim.vars.get('pythonblocks#marker_stdout', '|')
-    _markers['stderr'] = vim.vars.get('pythonblocks#marker_stderr', '!')
+    return vim.vars.get('pythonblocks#' + c, default)
+    # import vim
+    # global _config
+
+    # for k in tuple(_config.keys()):
+        # _config[k] = vim.vars.get('pythonblocks#' + k, _config[k])
+
+    # global _markers, _insert_return, _marker_template
+    # _markers['prefix'] = vim.vars.get('pythonblocks#marker_prefix', '#=')
+    # _markers['cell'] = vim.vars.get('pythonblocks#marker_cell', '=')
+    # _markers['value'] = vim.vars.get('pythonblocks#marker_value', '>')
+    # _markers['stdout'] = vim.vars.get('pythonblocks#marker_stdout', '|')
+    # _markers['stderr'] = vim.vars.get('pythonblocks#marker_stderr', '!')
+
+    # _insert_return = vim.vars.get('pythonblocks#
+
+    # _marker_template = vim.vars.get('pythonblocks#marker_template', '{dt:>74}s ')
 
 def restart():
     _interpreter.restart()
 
+def format_marker(cell):
+    m_cell = getconfig('marker_prefix') + getconfig('marker_cell')
+    template = getconfig('marker_template')
+
+    value = cell.return_value
+    oneline_value = value.splitlines()[0] if isinstance(value, str) else value
+
+    return m_cell + " " + template.format(**{
+        'dt': cell.dt,
+        'value': oneline_value,
+        'value_unless_none': oneline_value if oneline_value is not None else '',
+        'time': datetime.datetime.now(),
+    })
 
 def run_range():
     import vim
     global _markers
-    update_config()
+
+    m_cell = getconfig('marker_prefix') + getconfig('marker_cell')
+    m_value =  getconfig('marker_prefix') + getconfig('marker_value')
+    m_stdout = getconfig('marker_prefix') + getconfig('marker_stdout')
+    m_stderr = getconfig('marker_prefix') + getconfig('marker_stderr')
 
     range_ = vim.current.range
     cell = Cell.from_range(range_)
@@ -167,26 +214,31 @@ def run_range():
     # default to end
     insertion_point = -1
     for i, line in enumerate(range_[1:]):
-        if line.startswith(f"{_markers['prefix']}{_markers['cell']}"):
+        if line.startswith(m_cell):
             insertion_point = i + 1
             break
 
+    if getconfig('expand_marker') and insertion_point >= 0:
+        range_[insertion_point] = format_marker(cell)
 
     l = []
 
-    m_value = _markers['prefix'] + _markers['value']
-    m_stdout = _markers['prefix'] + _markers['stdout']
-    m_stderr = _markers['prefix'] + _markers['stderr']
+    if getconfig('insert_stdout'):
+        for out in cell.stdout.splitlines():
+            l.append(f"{m_stdout} {out}")
 
-    for out in cell.stdout.splitlines():
-        l.append(f"{m_stdout} {out}")
+    if getconfig('insert_stderr'):
+        for err in cell.stderr.splitlines():
+            l.append(f"{m_stderr} {err}")
 
-    for err in cell.stderr.splitlines():
-        l.append(f"{m_stderr} {err}")
-
-    if not _suppress_none_return or cell.return_value is not None:
-        for line in cell.return_value.splitlines():
-            l.append(f"{m_value} {line}")
+    # if not _suppress_none_return or cell.return_value is not None:
+    c = getconfig('insert_return')
+    if ((c == 'not_none') and (cell.return_value is not None)) or c == True:
+        if cell.return_value is None:
+            l.append(f"{m_value} None")
+        else:
+            for line in cell.return_value.splitlines():
+                l.append(f"{m_value} {line}")
 
     for k, v in tuple(cell.values.items()):
         lines = v.splitlines()
