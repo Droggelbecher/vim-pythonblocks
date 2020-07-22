@@ -27,9 +27,9 @@
 "
 " [x] Command to execute visual selection rather than current block
 "
-" [ ] Measure timing and report in marker (optionally)
+" [x] Measure timing and report in marker (optionally)
 "
-" [ ] Optionally report last execution time in marker
+" [x] Optionally report last execution time in marker
 "
 " [ ] [MAYBE] Set up some key bindings (switchable)
 "
@@ -52,32 +52,43 @@ if exists("g:loaded_pythonblocks")
 	finish
 endif
 
+" Markers
+
 if !exists('g:pythonblocks#marker_prefix')
 	let g:pythonblocks#marker_prefix = '#='
 endif
-
 if !exists('g:pythonblocks#marker_cell')
 	let g:pythonblocks#marker_cell = '='
 endif
-
 if !exists('g:pythonblocks#marker_value')
 	let g:pythonblocks#marker_value = '>'
 endif
-
 if !exists('g:pythonblocks#marker_stdout')
 	let g:pythonblocks#marker_stdout = '|'
 endif
-
 if !exists('g:pythonblocks#marker_stderr')
 	let g:pythonblocks#marker_stderr = '!'
 endif
 
+" Marker expansion
+
 if !exists('g:pythonblocks#expand_marker')
 	let g:pythonblocks#expand_marker = 1
 endif
+if !exists('g:pythonblocks#marker_template')
+	let g:pythonblocks#marker_template = '[{time:%H:%M:%S}] {dt:>74.6}s '
+endif
 
-if !exists('g:pythonblocks#expand_marker_string')
-	let g:pythonblocks#expand_marker_string = "                                                                                              ="
+" Insertion of output
+
+if !exists('g:pythonblocks#insert_return')
+	let g:pythonblocks#insert_return = 'not_none'
+endif
+if !exists('g:pythonblocks#insert_stdout')
+	let g:pythonblocks#insert_stdout = 1
+endif
+if !exists('g:pythonblocks#insert_stderr')
+	let g:pythonblocks#insert_stderr = 1
 endif
 
 if !exists('g:pythonblocks#visual_delay')
@@ -116,13 +127,6 @@ function! s:go_next_cell()
 	call setpos('.', [0, l:p, 1, 0])
 endfunction
 
-function! s:select_next_cell()
-	exec "normal! gv"
-	exec "normal! \<esc>"
-	call setpos('.', [0, line("'>") + 1, 1, 0])
-	call s:select_cell()
-endfunction
-
 function! s:update_selection_end(end)
 	let l:orig_pos = getpos('.')
 	call setpos(".", [0, getpos("'>")[1], 1, 0])
@@ -153,9 +157,6 @@ function! s:tidy_selection()
 	" Expand cell markers
 
 	let l:lines = line("$")
-	if g:pythonblocks#expand_marker
-		exec "silent! " . l:start . "," . l:end . ' s/^\V\(' . g:pythonblocks#marker_prefix . g:pythonblocks#marker_cell . '\)\s\*\$/\1 ' . g:pythonblocks#expand_marker_string . '/e'
-	endif
 	let l:end -= l:lines - line("$")
 
 	call s:update_selection_end(l:end)
@@ -171,6 +172,7 @@ function! s:run_selection()
 	endif
 	let l:end = l:end + line("$") - l:before
 	call setpos("'>", [0, l:end, 1, 0])
+	call setpos(".", [0, l:end, 1, 0])
 endfunction
 
 
@@ -218,12 +220,16 @@ function! pythonblocks#RunCell()
 	call s:run_selection()
 	exec "normal! gv"
 	exec "normal! \<esc>"
+
 	if getline(".") =~ '^\V' . g:pythonblocks#marker_prefix . g:pythonblocks#marker_cell . '\.\*'
 		" This appending will be tracked by '> automatically!
 		call append(line("'>") - 1, "")
 	else
 		call append(line("'>"), "")
 	endif
+	exec "normal! gv"
+	exec "normal! \<esc>"
+	call setpos(".", [0, line("'>") + 1, 1, 0])
 endfunction
 
 function! pythonblocks#RunSelection()
@@ -239,10 +245,10 @@ function! pythonblocks#RunUntil(end)
 		call s:go_next_cell()
 		let l:before = line("$")
 		call pythonblocks#RunCell()
-		" Move l:end to compensate for removed lines
+		" Move l:end to compensate for removed/added lines
 		let l:end = l:end + line("$") - l:before
 	endwhile
-	exec "normal \<esc>"
+	exec "normal! \<esc>"
 endfunction
 
 function! pythonblocks#RunFile(...) abort
