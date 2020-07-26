@@ -145,48 +145,9 @@ def init():
     _interpreter = SubprocessInterpreter()
 
 
-# _markers = {
-    # 'prefix': '#=',
-    # 'cell': '=',
-    # 'value': '>',
-    # 'stdout': '|',
-    # 'stderr': '!',
-# }
-
-# _suppress_none_return = True
-# _insert_return = 'not_none'
-# _marker_template = "{dt:>74}s "
-
-# _config = {
-    # 'marker_prefix': '#=',
-    # 'marker_cell': '=',
-    # 'marker_value': '>',
-    # 'marker_stdout': '|',
-    # 'marker_stderr': '!',
-    # 'expand_marker': 1,
-    # 'marker_template': '{dt:>74}s ',
-    # 'insert_return': 'not_none',
-# }
-
 def getconfig(c, type_=str, default=None):
     import vim
     return vim.vars.get('pythonblocks#' + c, default)
-    # import vim
-    # global _config
-
-    # for k in tuple(_config.keys()):
-        # _config[k] = vim.vars.get('pythonblocks#' + k, _config[k])
-
-    # global _markers, _insert_return, _marker_template
-    # _markers['prefix'] = vim.vars.get('pythonblocks#marker_prefix', '#=')
-    # _markers['cell'] = vim.vars.get('pythonblocks#marker_cell', '=')
-    # _markers['value'] = vim.vars.get('pythonblocks#marker_value', '>')
-    # _markers['stdout'] = vim.vars.get('pythonblocks#marker_stdout', '|')
-    # _markers['stderr'] = vim.vars.get('pythonblocks#marker_stderr', '!')
-
-    # _insert_return = vim.vars.get('pythonblocks#
-
-    # _marker_template = vim.vars.get('pythonblocks#marker_template', '{dt:>74}s ')
 
 def restart():
     _interpreter.restart()
