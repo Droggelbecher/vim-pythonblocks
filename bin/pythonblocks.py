@@ -105,9 +105,17 @@ class SubprocessInterpreter:
         self.connection, conn_executor = Pipe()
         self.subprocess = Process(target=execution_loop, args=(conn_executor,))
         self.subprocess.start()
+        print(f"[pythonblocks] Python subprocess restarted")
 
     def exec(self, cell):
-        self.connection.send(ExecCommand(cell.code, evals=cell.expressions))
+        try:
+            self.connection.send(ExecCommand(cell.code, evals=cell.expressions))
+        except Exception as e:
+            sys.stderr.write(traceback.format_exc())
+            # Subprocess died. Try *once* per call command to restart it
+            self.restart()
+            self.connection.send(ExecCommand(cell.code, evals=cell.expressions))
+
         d = self.connection.recv()
         for k, v in d.items():
             setattr(cell, k, v)
