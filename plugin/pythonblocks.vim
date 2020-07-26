@@ -76,7 +76,7 @@ if !exists('g:pythonblocks#expand_marker')
 	let g:pythonblocks#expand_marker = 1
 endif
 if !exists('g:pythonblocks#marker_template')
-	let g:pythonblocks#marker_template = '[{time:%H:%M:%S}] {dt:>74.6}s '
+	let g:pythonblocks#marker_template = '{time:%H:%M:%S} {dt:>64.6}s  '
 endif
 
 " Insertion of output
