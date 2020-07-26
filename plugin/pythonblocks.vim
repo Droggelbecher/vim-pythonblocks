@@ -259,17 +259,6 @@ function! pythonblocks#RunFile(...) abort
 endfunction
 
 
-
-function! pythonblocks#test_cells()
-	call setpos(".", [0, 0, 1, 0])
-	call s:select_cell()
-	while line(".") < line("$") - 1
-		call s:go_next_cell()
-		call s:select_cell()
-	endwhile
-	exec "normal \<esc>"
-endfunction
-
 function! pythonblocks#select_cell()
 	call s:select_cell()
 endfunction
@@ -292,7 +281,4 @@ command! PBRunAll call pythonblocks#RunUntil(line("$") - 1)
 " still its more convenient to use this way
 command! -range PBRunSelection call pythonblocks#RunSelection()
 command! -buffer -nargs=* -complete=file PythonblocksRunFile call pythonblocks#RunFile(<f-args>)
-
-command! PBTest call pythonblocks#test_cells()
-command! PBSel call pythonblocks#select_cell()
 
