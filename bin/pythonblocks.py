@@ -8,7 +8,7 @@ from typing import Any, Dict
 
 
 def send_object(object_, filelike):
-    bytes_ = pickle.dumps(object_, protocol=2)
+    bytes_ = pickle.dumps(object_)
     len_ = len(bytes_)
     len_bytes = bytes([(len_ >> (8 * (3 - i))) & 0xFF for i in range(4)])
     filelike.write(len_bytes + bytes_)
@@ -200,14 +200,13 @@ def test_executor():
     py2 = SubprocessInterpreter('python3')
     cell = Cell()
     cell.code = '''
+import sys
 print("Hello, World!")
-
+sys.version
 '''
     py2.execute(cell)
     print(cell.return_value)
     print(cell.stdout)
     print(cell.stderr)
 
-if __name__ == '__main__':
-    test_executor()
 

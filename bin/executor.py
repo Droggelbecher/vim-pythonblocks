@@ -11,11 +11,6 @@ def _run_cell_magic(magic, block):
     return pyblocks.run_cell_magic(magic, block)
 """
 
-def _ints(l):
-    if not len(l) or type(l[0]) == int:
-        return l[:]
-    return [ord(x) for x in l]
-
 def send_object(object_, filelike):
     bytes_ = pickle.dumps(object_)
     len_ = len(bytes_)
@@ -27,7 +22,7 @@ def send_object(object_, filelike):
     filelike.flush()
 
 def receive_object(filelike):
-    len_bytes = _ints(filelike.read(4))
+    len_bytes = filelike.read(4)
     len_ = sum([
         x << (8*(3 - i))
         for i, x in enumerate(len_bytes)

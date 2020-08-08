@@ -3,10 +3,13 @@
  * Edit your code in actual NeoVIM with everything about it that you like
  * Smooth & easy transition from "trying stuff out" to a proper python application
  * Interactively run individuall cells/blocks of code or any visual selection
- * Keep state in the interpreter (allowing you to call functions defined in previous blocks etc...),
-   until you decide to restart the python subprocess
- * Receive stdout, stderr and expression values in nvim as highlighted comments
+ * Receive stdout, stderr and expression values in nvim as specially highlighted comments
  * All generated output can be distinguished from normal commants and is tidied up on cell re-execution or explicit command
+ * Execution python is independent from Neovim python (currently is expected to be a python3 though).
+ * Support for magic commands (you can supply your own python functions that interpret cell contents)
+
+## Design decisions
+
  * No additional dependencies apart from neovim, python and pynvim
  * Pythonblocks will not mess with your keybindings as its hard to predict what would or wouldnt cause conflicts with something else.
    See above for keybinding suggestions
@@ -15,7 +18,7 @@
 ## Limitations
 
  * No inline tables, plots, etc...
- * No connection to jupyter notebook, no .ipynb support no magic %commands
+ * No connection to jupyter notebook, no .ipynb support
 
 ## Comparison to similar approaches:
 
@@ -27,13 +30,13 @@
 | Decent handling of multiline blocks           |                      | yes                        | yes         | yes      | yes          |
 | Do not require a separate window & refreshing | yes                  | yes                        |             |          | yes          |
 | Inline pictures & tables                      |                      | yes                        |             |          |              |
-| Magic %commands                               | yes                  | yes                        | not tested  | not tested |            |
+| Magic %commands                               | yes                  | yes                        | not tested  | not tested | yes        |
 
 ## Development stage
 
 Currently, pythonblocks is is in an early/experimental stage.
-We believe its already quite useful in some situations but it has not yet received a great deal of testing.
-Also don't rely yet on documentation being complete or there being a great deal of portability.
+We believe its already quite useful in some situations but it has not yet received intensive testing.
+Behavior / interface can still change and documentation is incomplete at this stage.
 
 Issue reports or PRs are generally welcome.
 
