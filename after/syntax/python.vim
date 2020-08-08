@@ -1,24 +1,26 @@
 
 let s:pref = strlen(g:pythonblocks#marker_prefix)
 
-exec 'syn match pbCellMarker /^\V' . g:pythonblocks#marker_prefix . g:pythonblocks#marker_cell . '\.\*/'
+exec 'syn match pbCellPrefix /^\V' . g:pythonblocks#marker_prefix . g:pythonblocks#marker_cell . '/ nextgroup=pbCellText conceal cchar=#'
+exec 'syn match pbCellText /.*$/ contained'
 
-exec 'syn match pbStdout /^\V' . g:pythonblocks#marker_prefix . g:pythonblocks#marker_stdout . '\.\*/'
-exec 'syn match pbStdoutText /^\V' . g:pythonblocks#marker_prefix . g:pythonblocks#marker_stdout . ' \zs\.\*/ containedin=pbStdout'
+exec 'syn match pbStdoutPrefix /^\V' . g:pythonblocks#marker_prefix . g:pythonblocks#marker_stdout . '/ nextgroup=pbStdoutText conceal cchar=>'
+exec 'syn match pbStdoutText /.*$/ contained'
 
-exec 'syn match pbStderr /^\V' . g:pythonblocks#marker_prefix . g:pythonblocks#marker_stderr . '\.\*/'
-exec 'syn match pbStderrText /^\V' . g:pythonblocks#marker_prefix . g:pythonblocks#marker_stderr . ' \zs\.\*/ containedin=pbStderr'
+exec 'syn match pbStderrPrefix /^\V' . g:pythonblocks#marker_prefix . g:pythonblocks#marker_stderr . '/ nextgroup=pbStderrText conceal cchar=>'
+exec 'syn match pbStderrText /.*$/ contained'
 
-exec 'syn match pbValue /^\V' . g:pythonblocks#marker_prefix . g:pythonblocks#marker_value . '\.\*/'
-exec 'syn match pbValueText /^\V' . g:pythonblocks#marker_prefix . g:pythonblocks#marker_value . ' \zs\.\*/ containedin=pbValue'
+exec 'syn match pbValuePrefix /^\V' . g:pythonblocks#marker_prefix . g:pythonblocks#marker_value . '/ nextgroup=pbValueText conceal cchar=>'
+exec 'syn match pbValueText /.*$/ contained'
 
-hi link pbCellMarker Folded
+hi link pbCellPrefix Folded
+hi link pbCellText Folded
 
-hi link pbStdout Comment
+hi link pbStdoutPrefix Comment
 hi pbStdoutText ctermfg=40
 
-hi link pbStderr Comment
+hi link pbStderrPrefix Comment
 hi pbStderrText ctermfg=160
 
-hi link pbValue Comment
+hi link pbValuePrefix Comment
 hi pbValueText ctermfg=39

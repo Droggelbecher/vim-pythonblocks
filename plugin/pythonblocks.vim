@@ -1,56 +1,8 @@
 
-" TODO:
-" [x] Return value of last expression in block (switchable)
-"
-" [x] Allow restarting the interpreter with a command
-"
-" [x] Clear cell command + clear all command
-"
-" [x] Run all cells up & including current one command
-"
-" [x] Colorize marker lines (switchable)
-"     #== color whole line with a grayish color to create a visual delimiter
-"     #=| light green?
-"     #=! red
-"
-" [x] On execution: trim all blank lines at end of cell, add blank lines
-" around output
-"
-" [x] More correct marker handling at end-of-file. Either ensure theres always
-"     a marker there or make a case-distinction based on line content in the
-"     tidying
-"
-" [ ] Tidying/running leaves two blank lines at EOF, when it should be one
-" like in all other cells
-"
-" [ ] Proper README, maybe a terminal recording to show off
-"
-" [x] Command to execute visual selection rather than current block
-"
-" [x] Measure timing and report in marker (optionally)
-"
-" [x] Optionally report last execution time in marker
-"
-" [ ] [MAYBE] Set up some key bindings (switchable)
-"
-" [ ] [MAYBE] Return value of arbitrary variables using
-"     smth like "#== a foo_bar baz", allow all expressions that do not contain
-"     space
-"
-" [ ] [MAYBE] Like the above but one expr per line like
-"     #=? a + b
-"     #=? f(3, 4) + [0, 1]
-"     #=? Foo().bar("foo bar bang")
-"
-" [ ] [MAYBE] Use signs to allow highlighting complete lines for better visual
-"     separation.
-"     OR automagically change the cell makers to something long for this
-"     purpose?
-"
-
 if exists("g:loaded_pythonblocks")
 	finish
 endif
+let g:loaded_pythonblocks = 1
 
 " Markers
 
@@ -68,6 +20,9 @@ if !exists('g:pythonblocks#marker_stdout')
 endif
 if !exists('g:pythonblocks#marker_stderr')
 	let g:pythonblocks#marker_stderr = '!'
+endif
+if !exists('g:pythonblocks#marker_magic')
+	let g:pythonblocks#marker_magic = '%'
 endif
 
 " Marker expansion
@@ -91,9 +46,16 @@ if !exists('g:pythonblocks#insert_stderr')
 	let g:pythonblocks#insert_stderr = 1
 endif
 
+" Misc
+
 if !exists('g:pythonblocks#visual_delay')
 	let g:pythonblocks#visual_delay = '200m'
 endif
+
+if !exists('g:pythonblocks#python_path')
+	let g:pythonblocks#python_path = 'python3'
+endif
+
 
 let s:bin_dir = expand('<sfile>:h:h') . '/bin/'
 
@@ -104,7 +66,8 @@ function! s:init_python() abort
 				\ 'sys.path.append("' . s:bin_dir . '")',
 				\ 'if "pythonblocks" in sys.modules:',
 				\ '  del sys.modules["pythonblocks"]',
-				\ 'import pythonblocks' ]
+				\ 'import pythonblocks',
+				\ 'pythonblocks.init()' ]
 
 	exec 'py3 exec('''.escape(join(l:init_lines, '\n'), "'").''')'
 endfunction
@@ -146,7 +109,7 @@ function! s:tidy_selection()
 
 	" Delete all lines with marker_prefix not followed by marker_cell
 	let l:lines = line("$")
-	exec "silent! " . l:start . "," . l:end . ' g/^\V' . g:pythonblocks#marker_prefix . '\(' . g:pythonblocks#marker_cell . '\)\@!/d'
+	exec "silent! " . l:start . "," . l:end . ' g/^\V' . g:pythonblocks#marker_prefix . '\(' . g:pythonblocks#marker_cell . '\|' . g:pythonblocks#marker_magic . '\)\@!/d'
 	let l:end -= l:lines - line("$")
 
 	" Delete all blank lines at the end
@@ -265,7 +228,7 @@ endfunction
 
 call s:init_python()
 
-command! PBRestart py3 pythonblocks.restart()
+command! -nargs=* -complete=file PBRestart py3 pythonblocks.restart(<f-args>)
 
 command! PBAddCellMarker call pythonblocks#AddCellMarker()
 
@@ -278,7 +241,8 @@ command! PBRunUntil call pythonblocks#RunUntil(line("."))
 command! PBRunAll call pythonblocks#RunUntil(line("$") - 1)
 
 " We don't actually use the range here but rather query '< and '> directly,
-" still its more convenient to use this way
+" still its more convenient to use this way, as : will add that range
+" automatically
 command! -range PBRunSelection call pythonblocks#RunSelection()
 command! -buffer -nargs=* -complete=file PythonblocksRunFile call pythonblocks#RunFile(<f-args>)
 

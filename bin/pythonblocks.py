@@ -1,122 +1,78 @@
-
-from multiprocessing import Process, Pipe
-from typing import Union, Optional, Set, Tuple
-import sys
-import traceback
-import time
 import datetime
-
-class ExecCommand:
-    """
-    A command to be executed by the dedicated python interpreter process
-    """
-    def __init__(self, code, eval_last_expr=True, evals=()):
-        self.code = code
-        self.evals = evals
-        self.eval_last_expr = eval_last_expr
-
-    def _run(self, globals_, locals_):
-        if self.eval_last_expr:
-            # Split off last statement and see if its an expression.
-            # if it is, execute it separately with eval() so we can obtain its value
-            import ast
-            statements = list(ast.iter_child_nodes(ast.parse(self.code)))
-            if not statements:
-                return None
-
-            if isinstance(statements[-1], ast.Expr):
-                exec_part = compile(ast.Module(body=statements[:-1]), filename="<ast>", mode="exec")
-                eval_part = compile(ast.Expression(body=statements[-1].value), filename="<ast>", mode="eval")
-                exec(exec_part, globals_, locals_)
-                return eval(eval_part, globals_, locals_)
-
-        exec(self.code, globals_, locals_)
+import pickle
+import subprocess
+import sys
+import time
+from pathlib import Path
+from typing import Any, Dict
 
 
-    def __call__(self, globals_, locals_=None):
-        t = time.time()
-        ret = self._run(globals_, locals_)
-        dt = time.time() - t
-
-        if ret is not None:
-            ret = repr(ret)
-
-        values = {}
-        for k in self.evals:
-            try:
-                values[k] = repr(eval(k, globals_, locals_))
-            except Exception as e:
-                values[k] = 'raised ' + e.__class__.__name__ + ': ' + str(e)
-
-        return ret, values, dt
-
-class ExitCommand:
-    pass
+def send_object(object_, filelike):
+    bytes_ = pickle.dumps(object_, protocol=2)
+    len_ = len(bytes_)
+    len_bytes = bytes([(len_ >> (8 * (3 - i))) & 0xFF for i in range(4)])
+    filelike.write(len_bytes + bytes_)
+    filelike.flush()
 
 
-def execution_loop(connection):
-    """
-    Back-end (actual subprocess)
-    """
-    globals_ = {}
+def receive_object(filelike):
+    filelike.flush()
+    len_bytes = filelike.read(4)
+    len_ = sum([x << (8 * (3 - i)) for i, x in enumerate(len_bytes)])
+    data_bytes = filelike.read(len_)
+    return pickle.loads(data_bytes)
 
-    import sys
-    import io
-
-    while True:
-        command = connection.recv()
-        sys.stdout = io.StringIO()
-        sys.stderr = io.StringIO()
-        return_value = None
-        values = {}
-
-        if isinstance(command, ExitCommand):
-            break
-
-        try:
-            return_value, values, dt = command(globals_)
-        except Exception as e:
-            sys.stderr.write(traceback.format_exc())
-
-        connection.send({
-            'stdout': sys.stdout.getvalue(),
-            'stderr': sys.stderr.getvalue(),
-            'values': values,
-            'return_value': return_value,
-            'dt': dt
-        })
 
 class SubprocessInterpreter:
     """
-    Front-end
+    Manages the lifecycle of the executor subprocess
     """
-    def __init__(self):
-        self.connection, conn_executor = Pipe()
-        self.subprocess = Process(target=execution_loop, args=(conn_executor,))
-        self.subprocess.start()
+    def __init__(self, python_path="python3"):
+        self.script_path = Path(__file__).parent.absolute() / "executor.py"
+        self.python_path = python_path
+        self.subprocess = subprocess.Popen(
+            [self.python_path, self.script_path],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
 
-    def restart(self):
-        self.connection.send(ExitCommand())
-        self.subprocess.join(timeout=5000)
-        if self.subprocess.is_alive():
-            self.subprocess.kill()
-        self.subprocess.close()
+    def restart(self, python_path=None):
+        """
+        Restart the executor subprocess,
+        optionally with a different python executable.
+        """
+        if python_path is not None:
+            self.python_path = python_path
 
-        self.connection, conn_executor = Pipe()
-        self.subprocess = Process(target=execution_loop, args=(conn_executor,))
-        self.subprocess.start()
-        print(f"[pythonblocks] Python subprocess restarted")
+        send_object({"type": "exit"}, self.subprocess.stdin)
+        self.subprocess = subprocess.Popen(
+            [self.python_path, self.script_path],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
 
-    def exec(self, cell):
-        try:
-            self.connection.send(ExecCommand(cell.code, evals=cell.expressions))
-        except Exception as e:
-            sys.stderr.write(traceback.format_exc())
-            # Subprocess died. Try *once* per call command to restart it
-            self.restart()
-            self.connection.send(ExecCommand(cell.code, evals=cell.expressions))
+    def execute(self, cell, magics=[]):
+        """
+        Execute the contens of the given cell.
+        `cell` will be modified to contain the execution results and additional information.
 
-        d = self.connection.recv()
+        Args:
+            cell (Cell): Cell te execute.
+            magics: Tokens of magics line to apply.
+        Return:
+            Passed cell.
+        """
+        retcode = self.subprocess.poll()
+        if retcode is not None:
+            print(self.subprocess.stderr.read(), file=sys.stderr)
+
+        send_object(
+            {"type": "exec", "code": cell.code, "magics": magics}, self.subprocess.stdin
+        )
+
+        d = receive_object(self.subprocess.stdout)
         for k, v in d.items():
             setattr(cell, k, v)
         return cell
@@ -125,84 +81,104 @@ class SubprocessInterpreter:
 class Cell:
     code = ""
     expressions = ()
-
     return_value = None
-    values = {}
-    stdout = []
-    stderr = []
+    values: Dict[str, Any] = {}
     dt = None
-
-    @classmethod
-    def from_range(class_, range_):
-        c = class_()
-        c.code = "\n".join(range_[:])
-        return c
+    stdout = ""
+    stderr = ""
 
 
 _interpreter = None
+
+
 def init():
     global _interpreter
-    _interpreter = SubprocessInterpreter()
+    _interpreter = SubprocessInterpreter(python_path=getconfig("python_path"))
 
 
 def getconfig(c, type_=str, default=None):
-    import vim
-    return vim.vars.get('pythonblocks#' + c, default)
+    import vim  # type: ignore
+    return vim.vars.get("pythonblocks#" + c, default)
 
-def restart():
-    _interpreter.restart()
+
+def restart(python_path=None):
+    _interpreter.restart(python_path)
+
 
 def format_marker(cell):
-    m_cell = getconfig('marker_prefix') + getconfig('marker_cell')
-    template = getconfig('marker_template')
+    m_cell = getconfig("marker_prefix") + getconfig("marker_cell")
+    template = getconfig("marker_template")
 
     value = cell.return_value
     oneline_value = value.splitlines()[0] if isinstance(value, str) else value
 
-    return m_cell + " " + template.format(**{
-        'dt': cell.dt,
-        'value': oneline_value,
-        'value_unless_none': oneline_value if oneline_value is not None else '',
-        'time': datetime.datetime.now(),
-    })
+    return (
+        m_cell
+        + " "
+        + template.format(
+            **{
+                "dt": cell.dt,
+                "value": oneline_value,
+                "value_unless_none": oneline_value if oneline_value is not None else "",
+                "time": datetime.datetime.now(),
+            }
+        )
+    )
+
 
 def run_range():
-    import vim
-    global _markers
+    import vim  # type: ignore
 
-    m_cell = getconfig('marker_prefix') + getconfig('marker_cell')
-    m_value =  getconfig('marker_prefix') + getconfig('marker_value')
-    m_stdout = getconfig('marker_prefix') + getconfig('marker_stdout')
-    m_stderr = getconfig('marker_prefix') + getconfig('marker_stderr')
+    p = getconfig("marker_prefix")
+    m_cell = p + getconfig("marker_cell")
+    m_value = p + getconfig("marker_value")
+    m_stdout = p + getconfig("marker_stdout")
+    m_stderr = p + getconfig("marker_stderr")
+    m_magic = p + getconfig("marker_magic")
 
     range_ = vim.current.range
-    cell = Cell.from_range(range_)
-    _interpreter.exec(cell)
+
+
+    code = ""
+    magics = []
+    for line in range_[:]:
+        l = line.strip()
+        if l.startswith(m_magic):
+            rest = l[len(m_magic) :]
+            magics.extend(x.strip() for x in rest.split())
+
+        if not l.startswith(p):
+            code += line + "\n"
+
+    cell = Cell()
+    cell.code = code
+
+    _interpreter.execute(cell, magics=magics)
 
     # Find insertion position: before the first cell boundary that is not in the first line
     # default to end
     insertion_point = -1
     for i, line in enumerate(range_[1:]):
-        if line.startswith(m_cell):
+        if line.strip().startswith(m_cell):
             insertion_point = i + 1
             break
 
-    if getconfig('expand_marker') and insertion_point >= 0:
+    if getconfig("expand_marker") and insertion_point >= 0:
         range_[insertion_point] = format_marker(cell)
 
     l = []
 
-    if getconfig('insert_stdout'):
+    if getconfig("insert_stdout"):
         for out in cell.stdout.splitlines():
             l.append(f"{m_stdout} {out}")
 
-    if getconfig('insert_stderr'):
+    if getconfig("insert_stderr"):
         for err in cell.stderr.splitlines():
             l.append(f"{m_stderr} {err}")
 
     # if not _suppress_none_return or cell.return_value is not None:
-    c = getconfig('insert_return')
-    if ((c == 'not_none') and (cell.return_value is not None)) or c == True:
+    c = getconfig("insert_return")
+    if ((c == "not_none") and (cell.return_value is not None)) or c == True:
         if cell.return_value is None:
             l.append(f"{m_value} None")
         else:
@@ -220,5 +196,18 @@ def run_range():
     else:
         range_.append(l)
 
-init()
+def test_executor():
+    py2 = SubprocessInterpreter('python3')
+    cell = Cell()
+    cell.code = '''
+print("Hello, World!")
+
+'''
+    py2.execute(cell)
+    print(cell.return_value)
+    print(cell.stdout)
+    print(cell.stderr)
+
+if __name__ == '__main__':
+    test_executor()
 
