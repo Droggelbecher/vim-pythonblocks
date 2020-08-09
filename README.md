@@ -1,30 +1,39 @@
+
+# Pythonblocks
+
+Harness the power of interactive Python execution right inside Neovim.
+
+![Screenshot](./pythonblocks.png)
+
 ## Features
 
- * Edit your code in actual NeoVIM with everything about it that you like
- * Smooth & easy transition from "trying stuff out" to a proper python application
+ * Edit your (interactive) python code with the full power of NeoVIM
  * Interactively run individuall cells/blocks of code or any visual selection
- * Receive stdout, stderr and expression values in nvim as specially highlighted comments
- * All generated output can be distinguished from normal commants and is tidied up on cell re-execution or explicit command
- * Execution python is independent from Neovim python (currently is expected to be a python3 though).
- * Support for magic commands (you can supply your own python functions that interpret cell contents)
+ * Smooth transition from "trying stuff out" to a proper application (its a python file at all stages)
+ * Receive stdout, stderr and expression values in nvim as specially highlighted comments (your python file stays valid)
+ * Environment is independent process from Neovims python
+ * Support for magic commands (custom functions to interpret cell contents)
+ * Built-in reporting of cell execution duration & last execution time
 
 ## Design decisions
 
+ * We try to keep it on a sweet spot between simple and powerful
  * No additional dependencies apart from neovim, python and pynvim
  * Pythonblocks will not mess with your keybindings as its hard to predict what would or wouldnt cause conflicts with something else.
-   See above for keybinding suggestions
-
+   See below for some keybinding suggestions.
 
 ## Limitations
 
  * No inline tables, plots, etc...
  * No connection to jupyter notebook, no .ipynb support
 
-## Comparison to similar approaches:
+## Comparison to similar approaches
+
+(empty cells mean "no")
 
 |                                               | ipython console mode | jupyter notebook (browser) | jupyter-vim | vimpyter | pythonblocks |
 | ---                                           | ---                  | ---                        | ---         | ---      | ---          |
-| Edit your python code in (n)VIM               | only functions       |                            | yes         | yes      | yes          |
+| Edit your python code in NeoVIM               | only functions       |                            | yes         | yes      | yes          |
 | Save your python code as .py files            | only functions       |                            | yes         |          | yes          |
 | Navigation/overview of your code              |                      | yes                        | yes         | yes      | yes          |
 | Decent handling of multiline blocks           |                      | yes                        | yes         | yes      | yes          |
@@ -36,11 +45,11 @@
 
 Currently, pythonblocks is is in an early/experimental stage.
 We believe its already quite useful in some situations but it has not yet received intensive testing.
-Behavior / interface can still change and documentation is incomplete at this stage.
+Behavior / interface can still change and documentation is in between nonexistant and incomplete at this stage.
 
-Issue reports or PRs are generally welcome.
+Issue reports and PRs are generally welcome.
 
-## Usage
+## Installation & Usage
 
 Install via your favorite plugin manager eg
 
@@ -91,7 +100,7 @@ print("Hello, World!")
 
 ## Configuration
 
-Configure options (this shows all the defaults):
+Configure options (with defaults):
 
 ```Vim script
 " All lines pythonblocks-specific lines will start with this
