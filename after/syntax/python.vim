@@ -1,26 +1,26 @@
 
 let s:pref = strlen(g:pythonblocks#marker_prefix)
 
-exec 'syn match pbCellPrefix /^\V' . g:pythonblocks#marker_prefix . g:pythonblocks#marker_cell . '/ nextgroup=pbCellText conceal cchar=#'
-exec 'syn match pbCellText /.*$/ contained'
+exec 'syn match pbCell /^\V' . g:pythonblocks#marker_prefix . g:pythonblocks#marker_cell . '\.\*\$/ contains=pbCellPrefix'
+exec 'syn match pbCellPrefix /^\V' . g:pythonblocks#marker_prefix . g:pythonblocks#marker_cell . '/ conceal cchar=# contained'
 
-exec 'syn match pbStdoutPrefix /^\V' . g:pythonblocks#marker_prefix . g:pythonblocks#marker_stdout . '/ nextgroup=pbStdoutText conceal cchar=>'
-exec 'syn match pbStdoutText /.*$/ contained'
+exec 'syn match pbStdout /^\V' . g:pythonblocks#marker_prefix . g:pythonblocks#marker_stdout . '\.\*\$/ contains=pbStdoutPrefix'
+exec 'syn match pbStdoutPrefix /^\V' . g:pythonblocks#marker_prefix . g:pythonblocks#marker_stdout . '/ conceal cchar=> contained'
 
-exec 'syn match pbStderrPrefix /^\V' . g:pythonblocks#marker_prefix . g:pythonblocks#marker_stderr . '/ nextgroup=pbStderrText conceal cchar=>'
-exec 'syn match pbStderrText /.*$/ contained'
+exec 'syn match pbStderr /^\V' . g:pythonblocks#marker_prefix . g:pythonblocks#marker_stderr . '\.\*\$/ contains=pbStderrPrefix'
+exec 'syn match pbStderrPrefix /^\V' . g:pythonblocks#marker_prefix . g:pythonblocks#marker_stderr . '/ conceal cchar=> contained'
 
-exec 'syn match pbValuePrefix /^\V' . g:pythonblocks#marker_prefix . g:pythonblocks#marker_value . '/ nextgroup=pbValueText conceal cchar=>'
-exec 'syn match pbValueText /.*$/ contained'
+exec 'syn match pbValue /^\V' . g:pythonblocks#marker_prefix . g:pythonblocks#marker_value . '\.\*\$/ contains=pbValuePrefix'
+exec 'syn match pbValuePrefix /^\V' . g:pythonblocks#marker_prefix . g:pythonblocks#marker_value . '/ conceal cchar=> contained'
 
 hi link pbCellPrefix Folded
-hi link pbCellText Folded
+hi link pbCell Folded
 
 hi link pbStdoutPrefix Comment
-hi pbStdoutText ctermfg=40
+hi pbStdout ctermfg=40
 
 hi link pbStderrPrefix Comment
-hi pbStderrText ctermfg=160
+hi pbStderr ctermfg=160
 
+hi pbValue ctermfg=39
 hi link pbValuePrefix Comment
-hi pbValueText ctermfg=39

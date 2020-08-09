@@ -1,7 +1,7 @@
 
-if exists("g:loaded_pythonblocks")
-	finish
-endif
+"if exists("g:loaded_pythonblocks")
+	"finish
+"endif
 let g:loaded_pythonblocks = 1
 
 " Markers
@@ -70,6 +70,13 @@ function! s:init_python() abort
 				\ 'pythonblocks.init()' ]
 
 	exec 'py3 exec('''.escape(join(l:init_lines, '\n'), "'").''')'
+endfunction
+
+function! s:restart(...) abort
+	let p = get(a:, 1, 'python3')
+	py3 pythonblocks.exit()
+	"call s:init_python(p)
+	exec 'py3 pythonblocks.restart("' . p . '")'
 endfunction
 
 function! s:select_cell()
@@ -228,7 +235,7 @@ endfunction
 
 call s:init_python()
 
-command! -nargs=* -complete=file PBRestart py3 pythonblocks.restart(<f-args>)
+command! -nargs=* -complete=file PBRestart call s:restart(<f-args>)
 
 command! PBAddCellMarker call pythonblocks#AddCellMarker()
 

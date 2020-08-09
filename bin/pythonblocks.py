@@ -37,6 +37,10 @@ class SubprocessInterpreter:
             stderr=subprocess.PIPE,
         )
 
+    def exit(self):
+        if self.subprocess:
+            send_object({"type": "exit"}, self.subprocess.stdin)
+
     def restart(self, python_path=None):
         """
         Restart the executor subprocess,
@@ -45,7 +49,8 @@ class SubprocessInterpreter:
         if python_path is not None:
             self.python_path = python_path
 
-        send_object({"type": "exit"}, self.subprocess.stdin)
+        self.exit()
+
         self.subprocess = subprocess.Popen(
             [self.python_path, self.script_path],
             stdin=subprocess.PIPE,
@@ -104,6 +109,8 @@ def getconfig(c, type_=str, default=None):
 def restart(python_path=None):
     _interpreter.restart(python_path)
 
+def exit():
+    _interpreter.exit()
 
 def format_marker(cell):
     m_cell = getconfig("marker_prefix") + getconfig("marker_cell")
