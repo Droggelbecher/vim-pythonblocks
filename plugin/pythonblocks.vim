@@ -33,6 +33,9 @@ endif
 if !exists('g:pythonblocks#marker_template')
 	let g:pythonblocks#marker_template = '{time:%H:%M:%S} {dt:>64.6}s  '
 endif
+if !exists('g:pythonblocks#waiting_template')
+	let g:pythonblocks#waiting_template = 'Computing... {dt:>60.6}s  '
+endif
 
 " Insertion of output
 
@@ -75,7 +78,6 @@ endfunction
 function! s:restart(...) abort
 	let p = get(a:, 1, 'python3')
 	py3 pythonblocks.exit()
-	"call s:init_python(p)
 	exec 'py3 pythonblocks.restart("' . p . '")'
 endfunction
 
@@ -104,6 +106,7 @@ function! s:update_selection_end(end)
 	let l:last_col = getpos(".")[2]
 	call setpos("'>", [0, a:end, l:last_col, 0])
 	call setpos(".", l:orig_pos)
+	"echomsg line("'>") . ' ' . line(".")
 endfunction
 
 function! s:tidy_selection()
@@ -129,6 +132,7 @@ function! s:tidy_selection()
 	let l:lines = line("$")
 	let l:end -= l:lines - line("$")
 
+	"echomsg l:start . ' ' . l:end
 	call s:update_selection_end(l:end)
 endfunction
 
@@ -191,12 +195,12 @@ function! pythonblocks#RunCell()
 	exec "normal! gv"
 	exec "normal! \<esc>"
 
-	if getline(".") =~ '^\V' . g:pythonblocks#marker_prefix . g:pythonblocks#marker_cell . '\.\*'
-		" This appending will be tracked by '> automatically!
-		call append(line("'>") - 1, "")
-	else
-		call append(line("'>"), "")
-	endif
+	"if getline(".") =~ '^\V' . g:pythonblocks#marker_prefix . g:pythonblocks#marker_cell . '\.\*'
+		"" This appending will be tracked by '> automatically!
+		"call append(line("'>") - 1, "")
+	"else
+		"call append(line("'>"), "")
+	"endif
 	exec "normal! gv"
 	exec "normal! \<esc>"
 	call setpos(".", [0, line("'>") + 1, 1, 0])

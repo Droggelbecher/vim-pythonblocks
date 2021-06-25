@@ -4,6 +4,8 @@ import sys
 import time
 import io
 import traceback
+from ipc import Reader, Writer
+from mylogging import debug
 
 _setup_code = """
 def _run_cell_magic(magic, block):
@@ -11,24 +13,24 @@ def _run_cell_magic(magic, block):
     return pyblocks.run_cell_magic(magic, block)
 """
 
-def send_object(object_, filelike):
-    bytes_ = pickle.dumps(object_)
-    len_ = len(bytes_)
-    len_bytes = bytes([
-        (len_ >> (8*(3 - i))) & 0xff
-        for i in range(4)
-    ])
-    filelike.write(len_bytes + bytes_)
-    filelike.flush()
+# def send_object(object_, filelike):
+    # bytes_ = pickle.dumps(object_)
+    # len_ = len(bytes_)
+    # len_bytes = bytes([
+        # (len_ >> (8*(3 - i))) & 0xff
+        # for i in range(4)
+    # ])
+    # filelike.write(len_bytes + bytes_)
+    # filelike.flush()
 
-def receive_object(filelike):
-    len_bytes = filelike.read(4)
-    len_ = sum([
-        x << (8*(3 - i))
-        for i, x in enumerate(len_bytes)
-    ])
-    data_bytes = filelike.read(len_)
-    return pickle.loads(data_bytes)
+# def receive_object(filelike):
+    # len_bytes = filelike.read(4)
+    # len_ = sum([
+        # x << (8*(3 - i))
+        # for i, x in enumerate(len_bytes)
+    # ])
+    # data_bytes = filelike.read(len_)
+    # return pickle.loads(data_bytes)
 
 def exec_magic_block(magic, code, globals_):
     code2 = '_ = _run_cell_magic("' + magic + '", """' + code + '""")'
@@ -88,7 +90,12 @@ def execution_loop():
     exec(_setup_code, globals_)
 
     while True:
-        command = receive_object(_real_stdin)
+        # debug("excutor: reading")
+        command = _reader()
+        if command is None:
+            time.sleep(0.1)
+            continue
+
         type_ = command.get("type", "exit")
         code = command.get("code", "")
         magics = command.get("magics", [])
@@ -115,24 +122,26 @@ def execution_loop():
         except Exception as e:
             sys.stderr.write(traceback.format_exc())
 
-        send_object(
+        _writer(
             {
                 "stdout": sys.stdout.getvalue(),
                 "stderr": sys.stderr.getvalue(),
                 "return_value": repr(return_value) if return_value is not None else None,
                 "dt": dt,
             },
-            _real_stdout
         )
 
 
 if __name__ == '__main__':
-    try:
-        _real_stdout = sys.stdout.buffer
-        _real_stdin = sys.stdin.buffer
-    except AttributeError:
-        _real_stdout = sys.stdout
-        _real_stdin = sys.stdin
+    # try:
+        # _real_stdout = sys.stdout.buffer
+        # _real_stdin = sys.stdin.buffer
+    # except AttributeError:
+        # _real_stdout = sys.stdout
+        # _real_stdin = sys.stdin
+
+    _writer = Writer(sys.stdout.fileno())
+    _reader = Reader(sys.stdin.fileno())
 
     try:
         execution_loop()

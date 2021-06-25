@@ -1,0 +1,22 @@
+
+[ ] Update README with pictures / animation & feature list
+
+[ ] Always assign result to "_" & do not chain cell magics, but add silent mode, possibly extend magics to
+    - toggle return value printing ("silent mode" above)
+	- toggle stdout/stderr printing
+	- query expressions about the cell
+	- change assignment target from _ to something else
+
+	#=% sql stdout= stderr=error_string ?`(a + (b - c))` value=result
+
+[ ] Rename files such that users are not tempted to import pythonblocks or executor
+
+[ ] Async execution & timeouts
+
+[ ] Set __name__='__main__'
+
+[ ] Be robust against executor crashes
+
+[ ] MAYBE: Allow executing vim commands
+
+[ ] MAYBE: Make executor compatible with python2

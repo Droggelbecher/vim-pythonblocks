@@ -1,27 +1,18 @@
+
+import threading
+import subprocess
+from pathlib import Path
+import time
+import sys
 import datetime
 import pickle
-import subprocess
-import sys
-import time
-from pathlib import Path
 from typing import Any, Dict
+from ipc import Reader, Writer
+import re
+from mylogging import debug
 
-
-def send_object(object_, filelike):
-    bytes_ = pickle.dumps(object_)
-    len_ = len(bytes_)
-    len_bytes = bytes([(len_ >> (8 * (3 - i))) & 0xFF for i in range(4)])
-    filelike.write(len_bytes + bytes_)
-    filelike.flush()
-
-
-def receive_object(filelike):
-    filelike.flush()
-    len_bytes = filelike.read(4)
-    len_ = sum([x << (8 * (3 - i)) for i, x in enumerate(len_bytes)])
-    data_bytes = filelike.read(len_)
-    return pickle.loads(data_bytes)
-
+# logging.basicConfig(filename='/tmp/pythonblocks.log', level=logging.DEBUG)
+# log = logging.getLogger(__name__)
 
 class SubprocessInterpreter:
     """
@@ -35,11 +26,15 @@ class SubprocessInterpreter:
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
+            bufsize=0
         )
+        self.writer = Writer(self.subprocess.stdin.fileno())
+        self.reader = Reader(self.subprocess.stdout.fileno())
+        debug(f"subprocess={self.subprocess} stdin={self.subprocess.stdin} fileno={self.subprocess.stdin.fileno()}")
 
     def exit(self):
         if self.subprocess:
-            send_object({"type": "exit"}, self.subprocess.stdin)
+            self.writer({"type": "exit"})
 
     def restart(self, python_path=None):
         """
@@ -73,31 +68,83 @@ class SubprocessInterpreter:
         if retcode is not None:
             print(self.subprocess.stderr.read(), file=sys.stderr)
 
-        send_object(
-            {"type": "exec", "code": cell.code, "magics": magics}, self.subprocess.stdin
+        debug(f"EXEC {cell.code}")
+        self.writer(
+            {"type": "exec", "code": cell.code, "magics": magics}
         )
 
-        d = receive_object(self.subprocess.stdout)
+    def wait_result(self, cell, range_, insertion_point):
+        d = self.reader()
+        while d is None:
+            # debug(f"pyblocks waiting {getconfig('expand_marker')} {insertion_point}")
+            if getconfig("expand_marker") and insertion_point >= 0:
+                range_[insertion_point] = cell.format_waiting()
+                time.sleep(0.1)
+            d = self.reader()
+
         for k, v in d.items():
             setattr(cell, k, v)
-        return cell
-
 
 class Cell:
     code = ""
     expressions = ()
     return_value = None
     values: Dict[str, Any] = {}
+    started = None
     dt = None
     stdout = ""
     stderr = ""
 
+    def __init__(self):
+        self.started = time.time()
+
+    def format_waiting(cell):
+        m_cell = getconfig("marker_prefix") + getconfig("marker_cell")
+        template = getconfig("waiting_template")
+
+        value = cell.return_value
+        oneline_value = value.splitlines()[0] if isinstance(value, str) else value
+
+        return (
+            m_cell
+            + " "
+            + template.format(
+                **{
+                    "dt": time.time() - cell.started,
+                    "time": datetime.datetime.now(),
+                }
+            )
+        )
+
+
+    def format_marker(cell):
+        m_cell = getconfig("marker_prefix") + getconfig("marker_cell")
+        template = getconfig("marker_template")
+
+        value = cell.return_value
+        oneline_value = value.splitlines()[0] if isinstance(value, str) else value
+
+        return (
+            m_cell
+            + " "
+            + template.format(
+                **{
+                    "dt": cell.dt,
+                    "value": oneline_value,
+                    "value_unless_none": oneline_value if oneline_value is not None else "",
+                    "time": datetime.datetime.now(),
+                }
+            )
+        )
+
+
 
 _interpreter = None
 
-
 def init():
     global _interpreter
+    debug("Pythonblocks initialized")
+
     _interpreter = SubprocessInterpreter(python_path=getconfig("python_path"))
 
 
@@ -112,28 +159,26 @@ def restart(python_path=None):
 def exit():
     _interpreter.exit()
 
-def format_marker(cell):
-    m_cell = getconfig("marker_prefix") + getconfig("marker_cell")
-    template = getconfig("marker_template")
-
-    value = cell.return_value
-    oneline_value = value.splitlines()[0] if isinstance(value, str) else value
-
-    return (
-        m_cell
-        + " "
-        + template.format(
-            **{
-                "dt": cell.dt,
-                "value": oneline_value,
-                "value_unless_none": oneline_value if oneline_value is not None else "",
-                "time": datetime.datetime.now(),
-            }
-        )
-    )
-
 
 def run_range():
+    import vim  # type: ignore
+    # t = threading.Thread(target=run_range_async)
+    # t.start()
+    p = getconfig("marker_prefix")
+    m_cell = p + getconfig("marker_cell")
+
+    # Find insertion position: before the first cell boundary that is not in the first line
+    # default to end
+    insertion_point = -1
+    range_ = vim.current.range
+    for i, line in enumerate(range_[1:]):
+        debug(f"LINE {i} {line}")
+        if line.strip().startswith(m_cell):
+            insertion_point = i + 1
+            break
+    vim.async_call(run_range_async, insertion_point=insertion_point)
+
+def run_range_async(insertion_point):
     import vim  # type: ignore
 
     p = getconfig("marker_prefix")
@@ -144,18 +189,31 @@ def run_range():
     m_magic = p + getconfig("marker_magic")
 
     range_ = vim.current.range
+    debug(f"RANGE {range_.start} {range_.end}")
 
+    unindent = True
 
     code = ""
     magics = []
-    for line in range_[:]:
+    indentation = None
+    for line in range_[1:]:
         l = line.strip()
         if l.startswith(m_magic):
             rest = l[len(m_magic) :]
             magics.extend(x.strip() for x in rest.split())
 
-        if not l.startswith(p):
-            code += line + "\n"
+        if l.startswith(p):
+            continue
+
+        if unindent:
+            if indentation is None and line.strip():
+                m = re.match(r'^(\s*)[^\s].*$', line)
+                indentation = m.groups()[0] if m is not None else ""
+            if indentation is not None:
+                if line.startswith(indentation):
+                    line = line[len(indentation):]
+
+        code += line + "\n"
 
     cell = Cell()
     cell.code = code
@@ -164,14 +222,18 @@ def run_range():
 
     # Find insertion position: before the first cell boundary that is not in the first line
     # default to end
-    insertion_point = -1
-    for i, line in enumerate(range_[1:]):
-        if line.strip().startswith(m_cell):
-            insertion_point = i + 1
-            break
+    # insertion_point = -1
+    # for i, line in enumerate(range_[:]):
+        # debug(f"LINE {i} {line}")
+        # if line.strip().startswith(m_cell):
+            # insertion_point = i + 1
+            # break
+
+    _interpreter.wait_result(cell, range_, insertion_point)
+
 
     if getconfig("expand_marker") and insertion_point >= 0:
-        range_[insertion_point] = format_marker(cell)
+        range_[insertion_point] = cell.format_marker()
 
     l = []
 
@@ -202,18 +264,4 @@ def run_range():
         range_.append(l, insertion_point)
     else:
         range_.append(l)
-
-def test_executor():
-    py2 = SubprocessInterpreter('python3')
-    cell = Cell()
-    cell.code = '''
-import sys
-print("Hello, World!")
-sys.version
-'''
-    py2.execute(cell)
-    print(cell.return_value)
-    print(cell.stdout)
-    print(cell.stderr)
-
 
