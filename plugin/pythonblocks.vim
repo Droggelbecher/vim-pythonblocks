@@ -31,10 +31,10 @@ if !exists('g:pythonblocks#expand_marker')
 	let g:pythonblocks#expand_marker = 1
 endif
 if !exists('g:pythonblocks#marker_template')
-	let g:pythonblocks#marker_template = '{time:%H:%M:%S} {dt:>64.6}s  '
+	let g:pythonblocks#marker_template = '{time:%H:%M:%S} {dt:>64.2f}s  '
 endif
 if !exists('g:pythonblocks#waiting_template')
-	let g:pythonblocks#waiting_template = 'Computing... {dt:>60.6}s  '
+	let g:pythonblocks#waiting_template = 'Computing... {dt:>60.2f}s  '
 endif
 
 " Insertion of output
@@ -84,10 +84,10 @@ endfunction
 function! s:select_cell()
 	exec "normal! \<esc>"
 	if line(".") > 1
-		exec 'normal! ?^' . g:pythonblocks#marker_prefix . g:pythonblocks#marker_cell . '\|\%^' . "\n"
+		exec 'silent normal! ?^' . g:pythonblocks#marker_prefix . g:pythonblocks#marker_cell . '\|\%^' . "\n"
 	endif
 	if line(".") < line("$")
-		exec 'normal! V/^' . g:pythonblocks#marker_prefix . g:pythonblocks#marker_cell . '\|\%$' . "\n"
+		exec 'silent normal! V/^' . g:pythonblocks#marker_prefix . g:pythonblocks#marker_cell . '\|\%$' . "\n"
 	endif
 	exec "normal! \<esc>gv"
 	redraw
@@ -119,12 +119,12 @@ function! s:tidy_selection()
 
 	" Delete all lines with marker_prefix not followed by marker_cell
 	let l:lines = line("$")
-	exec "silent! " . l:start . "," . l:end . ' g/^\V' . g:pythonblocks#marker_prefix . '\(' . g:pythonblocks#marker_cell . '\|' . g:pythonblocks#marker_magic . '\)\@!/d'
+	exec "silent " . l:start . "," . l:end . ' g/^\V' . g:pythonblocks#marker_prefix . '\(' . g:pythonblocks#marker_cell . '\|' . g:pythonblocks#marker_magic . '\)\@!/d'
 	let l:end -= l:lines - line("$")
 
 	" Delete all blank lines at the end
 	let l:lines = line("$")
-	exec "silent! " . l:start . "," . l:end . ' g/\(^\s*$\n\)\+\%' . l:end . 'l/d'
+	exec "silent " . l:start . "," . l:end . ' g/\(^\s*$\n\)\+\%' . l:end . 'l/d'
 	let l:end -= l:lines - line("$")
 
 	" Expand cell markers

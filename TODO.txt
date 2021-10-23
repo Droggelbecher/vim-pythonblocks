@@ -2,21 +2,81 @@
 [ ] Update README with pictures / animation & feature list
 
 [ ] Always assign result to "_" & do not chain cell magics, but add silent mode, possibly extend magics to
-    - toggle return value printing ("silent mode" above)
-	- toggle stdout/stderr printing
-	- query expressions about the cell
-	- change assignment target from _ to something else
+      - toggle return value printing ("silent mode" above)
+      - toggle stdout/stderr printing
+      - query expressions about the cell
+      - change assignment target from _ to something else
 
-	#=% sql stdout= stderr=error_string ?`(a + (b - c))` value=result
+      Eg: discard stdout, save stderr into variable "error_string",
+      print result of expression `(a + (b - c))` after cell execution
+      assign cell value to "result" rather than "_"
+
+      #=% sql stdout->None stderr=error_string ?`(a + (b - c))` value=result
+
+    Too complex to use?
+    Expressions can be easily done with a follow-up cell, so could saving stdout/stderr to
+    variables if we store it in some predefined places eg `pyblocks.latest_stdout` and allow controlling
+    printing. Eg the following could achieve the same, being a bit more verbose but also a bit more
+    obvious:
+
+      #=% sql stdout=False stderr=False
+      ...
+      #==
+      error_string = pyblocks.latest_stderr
+      value = pyblocks.latest_value
+      print(a + (b-c))
+      #==
+
+[ ] MAYBE: Allow executing vim commands OR provide pyblocks.restart
+
+      Usecase: allow to have a cell that restarts pyblocks if thats frequently needed for some
+      reason
+
+[ ] NO: Make executor compatible with python2
 
 [ ] Rename files such that users are not tempted to import pythonblocks or executor
+[ ] Refactor python files structure
+[ ] Rename project to pythonblocks.nvim
 
-[ ] Async execution & timeouts
+   ██████████████
+   █▆████████████         Pythonblocks.nvim v0.1
+   ▇▇▇███████████▔▔▔▔▔▏
+   ██████████████     ▏   Python 3.8.2 @ /usr/bin/python3
+   ██████             ▏
+   ██████          ▁▁▁▏
+        ▕           ▂ ▏
+        ▕▁▁▁▁▁▁▁▁▁▁▁▁▁▏
 
-[ ] Set __name__='__main__'
+
+[x] Async execution
+[x] Timeouts & cancelling
+[ ] Be robust against added/removed lines in long running blocks (possibly by assigning some kind of
+ids to lines)
+
+	#== [1] 10:02:56                             0.12s
+	#== [c3b52af0] 10:02:56                       0.12s
+
+[ ] Send line by line output to nvim
 
 [ ] Be robust against executor crashes
 
-[ ] MAYBE: Allow executing vim commands
+[ ] Consider changing to https://pynvim.readthedocs.io/en/latest/usage/remote-plugins.html
 
-[ ] MAYBE: Make executor compatible with python2
+      WIP
+
+[ ] Set __name__ = filename
+[ ] Better stack traces (with actual line numbers, etc...)
+
+[ ] Plotting/image viewing helpers:
+
+	from pyblocks import show_plot
+	...
+	ax.plot(...)
+	show_plot()
+
+	#=/ /path/to/generated/file.png
+
+    * Key combo to open file with favorite viewer
+    * option to additionally copy all files to a central filename which can be observed
+      with an autoreloading viewer
+
